@@ -237,6 +237,7 @@ if [[ "${READ_ZBX_CONFIG}" == "yes" && -f "${ZBX_CONFIG}" && -r "${ZBX_CONFIG}" 
 
     # set non-existing variables to their Zabbix defaults (if they are non-empty string)
     [ -z ${DBHOST+x} ] && DBHOST="localhost"
+    [ -z "$DBSCHEMA" ] && DBSCHEMA="$DEFAULT_DBSCHEMA"
 
     # Zabbix config has a special treatment for DBHost:
     # > If set to localhost, socket is used for MySQL.
@@ -317,13 +318,13 @@ case $DBTYPE in
         [ -n "$DBNAME" ] && DB_OPTS_BATCH=("${DB_OPTS_BATCH[@]}" -D $DBNAME)
         ;;
     psql)
-        [ -n "$DBSOCKET" ] && DB_OPTS=("${DB_OPTS[@]}" -h $DBSOCKET)
+        [ -n "$DBSOCKET" ] && DB_OPTS=("${DB_OPTS[@]}" -h $(dirname "$DBSOCKET"))
         [ -n "$DBHOST" ] && DB_OPTS=("${DB_OPTS[@]}" -h $DBHOST)
         [ -n "$DBUSER" ] && DB_OPTS=("${DB_OPTS[@]}" -U $DBUSER)
         DB_OPTS=("${DB_OPTS[@]}" -p"$DBPORT")
         if [ -n "$DBPASS" ]; then
            export PGPASSFILE=$(mktemp -u)
-           echo "$DBHOST:$DBPORT:$DBNAME:$DBUSER:$DBPASS" > $PGPASSFILE
+           echo "*:$DBPORT:$DBNAME:$DBUSER:$DBPASS" > $PGPASSFILE
            chmod 600 $PGPASSFILE
         fi
         DB_OPTS_BATCH=("${DB_OPTS[@]}" -Atw)
@@ -438,7 +439,7 @@ case $DBTYPE in
         DB_TABLES=$(mysql "${DB_OPTS_BATCH[@]}" -e "SELECT table_name FROM information_schema.tables WHERE table_schema = '$DBNAME'" 2>$ERRORLOG)
         ;;
     psql)
-        DB_TABLES=$(psql "${DB_OPTS_BATCH[@]}" -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_catalog='$DBNAME' AND table_type='BASE TABLE'" 2>$ERRORLOG)
+        DB_TABLES=$(psql "${DB_OPTS_BATCH[@]}" -c "SELECT table_name FROM information_schema.tables WHERE table_schema='$DBSCHEMA' AND table_catalog='$DBNAME' AND table_type='BASE TABLE'" 2>$ERRORLOG)
         ;;
 esac
 if [ $? -ne 0 ]; then
